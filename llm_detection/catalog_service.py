@@ -14,6 +14,7 @@ from llm_detection.types import (
     LLMSmellDefinition,
     LLMProviderDefinition,
     PromptMode,
+    ProviderKind,
 )
 
 
@@ -147,11 +148,73 @@ class LLMCatalogService:
         return list(self.load().providers)
 
     def get_provider(self, provider_id: str) -> LLMProviderDefinition:
+        return self.load().get_provider(provider_id)
+
+    def add_or_update_local_ollama_provider(
+        self,
+        model_name: str,
+        *,
+        host: Optional[str] = "http://localhost:11434",
+        display_name: Optional[str] = None,
+        options: Optional[dict] = None,
+        response_format: object = "json",
+        think: Optional[bool | str] = None,
+    ) -> str:
+        """Persist an Ollama model as a selectable local provider.
+
+        If a provider for the same model/host already exists, it is updated
+        instead of duplicated. Returns the provider_id.
+        """
+        model_name = (model_name or "").strip()
+        if not model_name:
+            raise CatalogValidationError("Model name must not be empty")
+
+        normalized_host = (host or "").strip() or None
         catalog = self.load()
-        for provider in catalog.providers:
-            if provider.provider_id == provider_id:
-                return provider
-        raise KeyError(f"Unknown provider_id: {provider_id}")
+
+        existing = next(
+            (
+                p
+                for p in catalog.providers
+                if p.kind == ProviderKind.LOCAL
+                and str(p.config.get("model_name") or "").strip() == model_name
+                and ((str(p.config.get("host") or "").strip() or None) == normalized_host)
+            ),
+            None,
+        )
+
+        provider_id = (
+            existing.provider_id
+            if existing is not None
+            else self._next_available_provider_id(
+                catalog, f"local-ollama-{_slugify(model_name)}"
+            )
+        )
+
+        config = dict(existing.config) if existing is not None else {}
+        config["model_name"] = model_name
+        if normalized_host:
+            config["host"] = normalized_host
+        else:
+            config.pop("host", None)
+        if options is not None:
+            config["options"] = dict(options)
+        if response_format is not None:
+            config["format"] = response_format
+        if think is not None:
+            config["think"] = think
+        else:
+            config.pop("think", None)
+
+        provider = LLMProviderDefinition(
+            provider_id=provider_id,
+            kind=ProviderKind.LOCAL,
+            display_name=(display_name or f"Ollama - {model_name}").strip(),
+            config=config,
+        )
+        catalog.upsert_provider(provider)
+        self.save(catalog)
+        return provider_id
 
     # -------- Targets / path handling --------
 
@@ -226,6 +289,16 @@ class LLMCatalogService:
     @staticmethod
     def _next_available_smell_id(catalog: LLMCatalog, base_id: str) -> str:
         existing = {s.smell_id for s in catalog.smells}
+        if base_id not in existing:
+            return base_id
+        i = 2
+        while f"{base_id}-{i}" in existing:
+            i += 1
+        return f"{base_id}-{i}"
+
+    @staticmethod
+    def _next_available_provider_id(catalog: LLMCatalog, base_id: str) -> str:
+        existing = {p.provider_id for p in catalog.providers}
         if base_id not in existing:
             return base_id
         i = 2

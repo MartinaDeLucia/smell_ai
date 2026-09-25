@@ -23,6 +23,17 @@ class OrchestratorStats:
     smells_processed: int = 0
 
 
+@dataclass(frozen=True)
+class GenerationTrace:
+    """Raw generation data kept for reproducibility/debugging."""
+
+    filename: str
+    smell_id: str
+    response: str
+    native_reasoning: str = ""
+    metadata: dict[str, Any] | None = None
+
+
 class LLMOrchestrator:
     """Orchestrates LLM detection using smell prompts and a provider.
 
@@ -32,6 +43,20 @@ class LLMOrchestrator:
     def __init__(self, provider: LLMProvider, catalog: LLMCatalog):
         self.provider = provider
         self.catalog = catalog
+        self.last_traces: list[GenerationTrace] = []
+
+    def _generate(self, prompt: str, filename: str, smell_id: str) -> str:
+        generation = self.provider.generate_with_metadata(prompt)
+        self.last_traces.append(
+            GenerationTrace(
+                filename=filename,
+                smell_id=smell_id,
+                response=generation.response,
+                native_reasoning=generation.native_reasoning,
+                metadata=dict(generation.metadata),
+            )
+        )
+        return generation.response
 
     @staticmethod
     def _code_with_line_numbers(code: str) -> str:
@@ -64,7 +89,8 @@ class LLMOrchestrator:
             "    {\n"
             '      "function_name": "<name of the function or method where the smell occurs, or null if global>",\n'
             '      "line": <line number where the smell starts>,\n'
-            '      "description": "<short explanation>",\n'
+            '      "description": "<short summary of the detected smell>",\n'
+            '      "reasoning": "<concise evidence-based rationale: violated rule + concrete code evidence>",\n'
             '      "additional_info": "<optional refactoring hint or summary>"\n'
             "    }\n"
             "  ]\n"
@@ -80,6 +106,9 @@ class LLMOrchestrator:
             "- Use precise line numbers.\n"
             "- The code is provided with 1-based line numbers as a prefix like '12: ...'.\n"
             "  When you report 'line', use that exact prefix number.\n"
+            "- For every finding, 'reasoning' is REQUIRED and must be concise (1-3 sentences).\n"
+            "- In 'reasoning', explain which smell rule is matched and point to the concrete code evidence.\n"
+            "- Do not expose a hidden chain-of-thought; provide only the short, user-facing justification needed to verify the finding.\n"
             "- Be conservative: avoid false positives.\n\n"
             f"FILENAME: {target.filename}\n"
             "CODE (numbered):\n"
@@ -96,6 +125,7 @@ class LLMOrchestrator:
     ) -> tuple[list[LLMSmellFinding], OrchestratorStats]:
         findings: list[LLMSmellFinding] = []
         prompts_sent = 0
+        self.last_traces = []
 
         for target in targets:
             for smell_id in smell_ids:
@@ -104,7 +134,7 @@ class LLMOrchestrator:
                     continue
 
                 prompt = self.build_prompt(smell_id, target, prompt_mode)
-                raw = self.provider.generate(prompt)
+                raw = self._generate(prompt, target.filename, smell_id)
                 prompts_sent += 1
 
                 findings.extend(
@@ -134,10 +164,11 @@ class LLMOrchestrator:
         """UC02 helper: allows testing draft prompt before saving as default."""
         findings: list[LLMSmellFinding] = []
         prompts_sent = 0
+        self.last_traces = []
 
         for target in targets:
             prompt = self.build_prompt(smell_id, target, prompt_mode)
-            raw = self.provider.generate(prompt)
+            raw = self._generate(prompt, target.filename, smell_id)
             prompts_sent += 1
             findings.extend(
                 self._normalize_response(
@@ -167,10 +198,11 @@ class LLMOrchestrator:
         findings: list[LLMSmellFinding] = []
         raw_by_filename: dict[str, str] = {}
         prompts_sent = 0
+        self.last_traces = []
 
         for target in targets:
             prompt = self.build_prompt(smell_id, target, prompt_mode)
-            raw = self.provider.generate(prompt)
+            raw = self._generate(prompt, target.filename, smell_id)
             raw_by_filename[target.filename] = raw
             prompts_sent += 1
             findings.extend(
@@ -337,6 +369,12 @@ class LLMOrchestrator:
                         description=_safe_str(
                             item.get("description", smell.description or smell.display_name)
                         ),
+                        reasoning=_safe_str(
+                            item.get(
+                                "reasoning",
+                                item.get("rationale", item.get("explanation", "")),
+                            )
+                        ),
                         additional_info=_safe_str(item.get("additional_info", "")),
                         smell_id=smell_id,
                         confidence=confidence_f,
@@ -430,6 +468,12 @@ class LLMOrchestrator:
                     smell_name=smell.display_name,
                     line=line_int,
                     description=_safe_str(desc),
+                    reasoning=_safe_str(
+                        item.get(
+                            "reasoning",
+                            item.get("rationale", item.get("explanation", "")),
+                        )
+                    ),
                     additional_info=_safe_str(
                         item.get(
                             "additional_info",
@@ -453,6 +497,7 @@ class LLMOrchestrator:
             "smell_name",
             "line",
             "description",
+            "reasoning",
             "additional_info",
         ]
         return pd.DataFrame(rows, columns=columns)
