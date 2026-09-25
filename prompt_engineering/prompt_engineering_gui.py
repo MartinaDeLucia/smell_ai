@@ -6,7 +6,7 @@ import threading
 from dataclasses import replace
 from datetime import datetime
 from time import monotonic
-from typing import Optional
+from typing import Any, Optional
 
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
@@ -18,6 +18,7 @@ from llm_detection.providers import LocalLLMProvider
 from llm_detection.types import DetectionTarget, PromptMode, ProviderKind
 from utils.file_utils import FileUtils
 from gui.manage_code_smells_gui import AddSmellDialog
+from gui.ollama_model_manager_gui import OllamaModelManagerDialog
 
 
 class PromptEngineeringGUI:
@@ -157,6 +158,12 @@ class PromptEngineeringGUI:
         self._local_provider_combo = ttk.Combobox(paths, state="readonly", width=50)
         self._local_provider_combo.grid(row=2, column=1, sticky="w", pady=(6, 10))
         self._local_provider_combo.bind("<<ComboboxSelected>>", lambda _e: self._on_local_provider_selected())
+        self._manage_models_btn = ttk.Button(
+            paths,
+            text="Browse / Download Models",
+            command=self._open_model_manager,
+        )
+        self._manage_models_btn.grid(row=2, column=2, sticky="e", padx=10, pady=(6, 10))
 
         # Actions
         actions = ttk.Frame(self.master)
@@ -258,8 +265,8 @@ class PromptEngineeringGUI:
             self._local_provider_combo.configure(state="disabled")
             self._selected_local_provider_id = None
             self._append_output(
-                "Nessun provider LLM locale configurato nel catalogo. "
-                "Aggiungi almeno un provider con kind='local' in config/llm_catalog.json.\n"
+                "Nessun modello locale configurato. "
+                "Usa 'Browse / Download Models' per scegliere, scaricare o registrare un modello Ollama.\n"
             )
             self._sync_test_button_state()
             return
@@ -267,6 +274,23 @@ class PromptEngineeringGUI:
         self._local_provider_combo.configure(state="readonly")
         self._local_provider_combo.current(0)
         self._on_local_provider_selected()
+
+    def _open_model_manager(self) -> None:
+        OllamaModelManagerDialog(
+            self.master,
+            catalog_service=self.catalog_service,
+            on_catalog_changed=self._load_local_providers_into_dropdown,
+            on_model_ready=self._select_local_provider_by_id,
+        )
+
+    def _select_local_provider_by_id(self, provider_id: str) -> None:
+        """Select the model that was installed/registered from Model Hub."""
+        self._load_local_providers_into_dropdown()
+        for display, pid in self._local_provider_display_to_id.items():
+            if pid == provider_id:
+                self._local_provider_combo.set(display)
+                self._on_local_provider_selected()
+                break
 
     def _on_local_provider_selected(self) -> None:
         selected = self._local_provider_combo.get()
@@ -458,9 +482,12 @@ class PromptEngineeringGUI:
         self._append_output(f"Local provider: {provider_id}\n")
         self._append_output("Analyzing file(s)...\n")
 
+        # Capture all Tk values on the UI thread. Tk widgets must not be read from
+        # the background worker.
+        run_prompt_text = prompt_text
         t = threading.Thread(
             target=self._run_test_thread,
-            args=(smell_id, mode, python_files, output_path, provider_id),
+            args=(smell_id, mode, python_files, output_path, provider_id, run_prompt_text),
             daemon=True,
         )
         t.start()
@@ -539,15 +566,16 @@ class PromptEngineeringGUI:
         python_files: list[str],
         output_path: str,
         provider_id: str,
+        prompt_text: str,
     ) -> None:
         try:
             catalog = self.catalog_service.load()
             smell = catalog.get_smell(smell_id)
 
-            # ensure catalog contains the draft prompt used for the run
+            # The prompt text was captured on the UI thread before starting this
+            # worker, avoiding unsafe Tk access from a background thread.
             if mode == PromptMode.DRAFT:
-                prompt_text = self._get_current_prompt_text().strip()
-                smell = replace(smell, draft_prompt=prompt_text)
+                smell = replace(smell, draft_prompt=prompt_text.strip())
                 catalog.upsert_smell(smell)
 
             provider = self._build_local_provider_by_id(catalog, provider_id)
@@ -556,7 +584,7 @@ class PromptEngineeringGUI:
             all_findings = []
             prompts_sent = 0
             total = len(python_files)
-            raw_records: list[dict[str, str]] = []
+            raw_records: list[dict[str, Any]] = []
 
             for idx, filename in enumerate(python_files, start=1):
                 if self._cancel_event.is_set():
@@ -583,6 +611,7 @@ class PromptEngineeringGUI:
                 all_findings.extend(findings)
                 prompts_sent += stats.prompts_sent
 
+                trace = orchestrator.last_traces[-1] if orchestrator.last_traces else None
                 raw_records.append(
                     {
                         "filename": filename,
@@ -590,6 +619,8 @@ class PromptEngineeringGUI:
                         "prompt_mode": mode.value,
                         "provider_id": provider_id,
                         "raw_response": raw_by_file.get(filename, ""),
+                        "native_reasoning": trace.native_reasoning if trace else "",
+                        "generation_metadata": trace.metadata if trace else {},
                     }
                 )
 
@@ -646,6 +677,17 @@ class PromptEngineeringGUI:
                         self._append_output("Nessun finding restituito dall'LLM.\n")
                 else:
                     self._append_output("Findings validi generati e salvati su CSV.\n")
+                    self._append_output("\nReasoning preview:\n")
+                    for finding in valid_findings[:20]:
+                        rationale = (getattr(finding, "reasoning", "") or "").strip()
+                        self._append_output(
+                            f"- {os.path.basename(finding.filename)}:{finding.line} "
+                            f"[{finding.smell_name}] {rationale or '(reasoning non restituito)'}\n"
+                        )
+                    if len(valid_findings) > 20:
+                        self._append_output(
+                            f"... altri {len(valid_findings) - 20} finding nel CSV.\n"
+                        )
 
                 if any(getattr(f, "line", None) <= 0 for f in all_findings):
                     self._append_output(
@@ -722,6 +764,7 @@ class PromptEngineeringGUI:
         self._add_smell_btn.configure(state=add_smell_state)
         self._cancel_btn.configure(state="normal" if running else "disabled")
         self._local_provider_combo.configure(state="disabled" if running else ("disabled" if self._ui_disabled_no_smells else "readonly"))
+        self._manage_models_btn.configure(state="disabled" if running else "normal")
 
         if running:
             self._prompt_text.configure(state="disabled")
@@ -746,13 +789,14 @@ class PromptEngineeringGUI:
         options_val = local.config.get("options")
         options = dict(options_val) if isinstance(options_val, dict) else None
         response_format = local.config.get("format") or local.config.get("response_format")
-        response_format = str(response_format) if response_format else None
+        think = local.config.get("think")
 
         return LocalLLMProvider(
             model_name=model_name,
             host=host,
             options=options,
             response_format=response_format,
+            think=think,
         )
 
     # ---------------- Output helpers ----------------

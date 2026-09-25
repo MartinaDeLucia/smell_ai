@@ -21,8 +21,8 @@
         "format": "json",
         "model_name": "qwen2.5-coder:7b",
         "options": {
-          "num_predict": 256,
-          "num_ctx": 2048,
+          "num_predict": 768,
+          "num_ctx": 8192,
           "temperature": 0
         }
       }
@@ -36,8 +36,8 @@
         "format": "json",
         "model_name": "gemma3:4b",
         "options": {
-          "num_predict": 256,
-          "num_ctx": 2048,
+          "num_predict": 768,
+          "num_ctx": 8192,
           "temperature": 0
         }
       }

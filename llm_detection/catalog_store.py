@@ -82,17 +82,13 @@ class LLMCatalogStore:
         if self.exists():
             return self.load()
 
+        # Do not seed a phantom local model: a fresh CodeSmile installation may
+        # have Ollama but no downloaded LLMs. Models are discovered/installed from
+        # the Model Hub and registered here only after the user chooses one.
         catalog = seed or LLMCatalog(
             schema_version=1,
             smells=[],
-            providers=[
-                LLMProviderDefinition(
-                    provider_id="local-ollama",
-                    kind=ProviderKind.LOCAL,
-                    display_name="Ollama (local)",
-                    config={"model_name": "qwen2.5-coder:14b"},
-                )
-            ],
+            providers=[],
         )
         self.save(catalog)
         return catalog
