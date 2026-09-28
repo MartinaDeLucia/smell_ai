@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from typing import Any, Iterable, Sequence
 
@@ -64,6 +65,40 @@ class LLMOrchestrator:
         # 1-based line numbering to match typical editors
         return "\n".join(f"{i}: {line}" for i, line in enumerate(lines, start=1))
 
+    @staticmethod
+    def _coerce_line_number(value: Any) -> int | None:
+        """Normalize a model-provided line number.
+
+        Accepted examples:
+        - 64
+        - "64"
+        - "64: df['a']['b']"
+        - "64 : some code"
+
+        Returns None when no valid positive line number can be recovered.
+        """
+        if isinstance(value, bool):
+            return None
+
+        if isinstance(value, int):
+            return value if value > 0 else None
+
+        if isinstance(value, float):
+            if value.is_integer() and value > 0:
+                return int(value)
+            return None
+
+        text = str(value or "").strip()
+        if not text:
+            return None
+
+        match = re.match(r"^(\d+)(?:\s*:.*)?$", text)
+        if not match:
+            return None
+
+        line_number = int(match.group(1))
+        return line_number if line_number > 0 else None
+
     def build_prompt(
         self,
         smell_id: str,
@@ -105,7 +140,9 @@ class LLMOrchestrator:
             "- Keep the response concise. If you are unsure, return fewer findings but keep valid JSON.\n"
             "- Use precise line numbers.\n"
             "- The code is provided with 1-based line numbers as a prefix like '12: ...'.\n"
-            "  When you report 'line', use that exact prefix number.\n"
+            "- The 'line' field MUST contain ONLY the integer line number.\n"
+            "- Example: use \"line\": 12, NOT \"line\": \"12: some_code()\".\n"
+            "- Never include source code, ':' or other text inside the 'line' field.\n"
             "- For every finding, 'reasoning' is REQUIRED and must be concise (1-3 sentences).\n"
             "- In 'reasoning', explain which smell rule is matched and point to the concrete code evidence.\n"
             "- Do not expose a hidden chain-of-thought; provide only the short, user-facing justification needed to verify the finding.\n"
@@ -345,11 +382,8 @@ class LLMOrchestrator:
                 if line == -1 and "line_number" in item:
                     line = item.get("line_number", -1)
 
-                try:
-                    line_int = int(line)
-                except Exception:
-                    continue
-                if line_int <= 0:
+                line_int = self._coerce_line_number(line)
+                if line_int is None:
                     continue
 
                 confidence = item.get("confidence")
@@ -438,11 +472,8 @@ class LLMOrchestrator:
             line = item.get("line", -1)
             if line == -1 and "line_number" in item:
                 line = item.get("line_number", -1)
-            try:
-                line_int = int(line)
-            except Exception:
-                continue
-            if line_int <= 0:
+            line_int = self._coerce_line_number(line)
+            if line_int is None:
                 continue
 
             confidence = item.get("confidence")

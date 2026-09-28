@@ -91,30 +91,41 @@ class LocalLLMProvider(LLMProvider):
 
     def generate_with_metadata(self, prompt: str) -> LLMGenerationResult:
         client = self._client()
+
+        # Use Ollama chat so final content and provider-native thinking are
+        # exposed as two distinct fields of the returned message.
         kwargs: dict[str, Any] = {
             "model": self.model_name,
-            "prompt": prompt,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": prompt,
+                }
+            ],
             "options": self.options,
-            # Explicitly disable streaming so response and native reasoning are
-            # available as a single object.
             "stream": False,
         }
+
         if self.response_format is not None:
             kwargs["format"] = self.response_format
         if self.think is not None:
             kwargs["think"] = self.think
 
         try:
-            response = client.generate(**kwargs)
+            response = client.chat(**kwargs)
         except Exception as e:
             host_hint = f" ({self.host})" if self.host else ""
             raise RuntimeError(
-                "Failed to generate with Ollama" + host_hint + ". "
-                "Ensure Ollama is installed/running and the model is available locally."
+                "Failed to chat with Ollama"
+                + host_hint
+                + ". Ensure Ollama is installed/running "
+                  "and the model is available locally."
             ) from e
 
-        final_response = str(_value(response, "response", "") or "")
-        native_reasoning = str(_value(response, "thinking", "") or "")
+        message = _value(response, "message", {})
+
+        final_response = str(_value(message, "content", "") or "")
+        native_reasoning = str(_value(message, "thinking", "") or "")
 
         metadata_keys = (
             "model",
@@ -132,6 +143,10 @@ class LocalLLMProvider(LLMProvider):
             for key in metadata_keys
             if _value(response, key) is not None
         }
+
+        # Diagnostic only. Keep response and provider-native reasoning separate.
+        if not final_response.strip() and native_reasoning.strip():
+            metadata["empty_content_with_thinking"] = True
 
         return LLMGenerationResult(
             response=final_response,
