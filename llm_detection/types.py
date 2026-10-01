@@ -26,6 +26,11 @@ class NormalizationMode(str, Enum):
     STRICT = "strict"
     SALVAGE = "salvage"
 
+class DetectionStatus(str, Enum):
+    SUCCESS = "success"
+    INVALID_RESPONSE = "invalid_response"
+    PROVIDER_ERROR = "provider_error"
+
 
 @dataclass(frozen=True)
 class LLMGenerationResult:
@@ -169,3 +174,13 @@ class LLMSmellFinding:
             "reasoning": self.reasoning,
             "additional_info": self.additional_info,
         }
+
+
+@dataclass(frozen=True)
+class DetectionResult:
+    filename: str
+    smell_id: str
+    status: DetectionStatus
+    findings: tuple[LLMSmellFinding, ...] = ()
+    raw_response: Optional[str] = None
+    error: Optional[str] = None
