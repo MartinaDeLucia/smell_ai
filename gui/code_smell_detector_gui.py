@@ -4,14 +4,15 @@ import sys
 import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
+
 from components.project_analyzer import ProjectAnalyzer
 from gui.textbox_redirect import TextBoxRedirect
+from gui.folder_utils import open_folder
 from llm_detection.catalog_service import LLMCatalogService
 from llm_detection.types import ProviderKind, PromptMode
 from llm_detection.providers import LocalLLMProvider, ApiLLMProvider
 from llm_detection.orchestrator import LLMOrchestrator
 from gui.ollama_model_manager_gui import OllamaModelManagerDialog
-
 
 class CodeSmellDetectorGUI:
     """
@@ -58,14 +59,33 @@ class CodeSmellDetectorGUI:
         )
         self.output_path.grid(row=1, column=1, sticky="w", padx=5, pady=2)
 
+        output_buttons_frame = tk.Frame(self.master)
+        output_buttons_frame.grid(
+            row=1,
+            column=2,
+            padx=5,
+            pady=2,
+            sticky="w",
+        )
+
         self.output_button = tk.Button(
-            self.master,
-            text="Choose Output Folder",
+            output_buttons_frame,
+            text="Choose Folder",
             bg="lightblue",
             command=self.choose_output_path,
         )
-        self.output_button.grid(row=1, column=2, padx=5, pady=2)
+        self.output_button.pack(
+            side=tk.LEFT,
+            padx=(0, 4),
+        )
 
+        self.open_output_button = tk.Button(
+            output_buttons_frame,
+            text="Open Results Folder",
+            command=self.open_output_folder,
+            state="disabled",
+        )
+        self.open_output_button.pack(side=tk.LEFT)
         # Walker Selection
         self.walker_label = tk.Label(
             self.master, text="Select number of walkers:"
@@ -225,8 +245,32 @@ class CodeSmellDetectorGUI:
         Opens a folder selection dialog for output path.
         """
         path = filedialog.askdirectory()
+
         if path:
             self.output_path.configure(text=path)
+            self.open_output_button.configure(state="normal")
+
+    def open_output_folder(self):
+        """
+        Open the selected output directory in the operating system's
+        default file manager.
+        """
+        path = str(self.output_path.cget("text") or "").strip()
+
+        if not path or path == "No path selected":
+            messagebox.showwarning(
+                "Output folder",
+                "Please select an output folder first.",
+            )
+            return
+
+        try:
+            open_folder(path)
+        except Exception as e:
+            messagebox.showerror(
+                "Output folder",
+                f"Could not open the output folder:\n{e}",
+            )
 
     def load_llm_data(self):
         """

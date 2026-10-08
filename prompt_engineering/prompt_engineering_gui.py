@@ -19,7 +19,7 @@ from llm_detection.types import DetectionTarget, PromptMode, ProviderKind
 from utils.file_utils import FileUtils
 from gui.manage_code_smells_gui import AddSmellDialog
 from gui.ollama_model_manager_gui import OllamaModelManagerDialog
-
+from gui.folder_utils import open_folder
 
 class PromptEngineeringGUI:
     def __init__(self, master: tk.Tk, catalog_service: Optional[LLMCatalogService] = None):
@@ -147,12 +147,54 @@ class PromptEngineeringGUI:
             row=0, column=2, sticky="e", padx=10, pady=6
         )
 
-        ttk.Label(paths, text="Output path:").grid(row=1, column=0, sticky="w", padx=10, pady=6)
-        self._output_path_label = ttk.Label(paths, text="No path selected")
-        self._output_path_label.grid(row=1, column=1, sticky="ew", pady=6)
-        ttk.Button(paths, text="Choose Output Folder", command=self._choose_output_path).grid(
-            row=1, column=2, sticky="e", padx=10, pady=6
+        ttk.Label(
+            paths,
+            text="Output path:",
+        ).grid(
+            row=1,
+            column=0,
+            sticky="w",
+            padx=10,
+            pady=6,
         )
+
+        self._output_path_label = ttk.Label(
+            paths,
+            text="No path selected",
+        )
+        self._output_path_label.grid(
+            row=1,
+            column=1,
+            sticky="ew",
+            pady=6,
+        )
+
+        output_buttons_frame = ttk.Frame(paths)
+        output_buttons_frame.grid(
+            row=1,
+            column=2,
+            sticky="e",
+            padx=10,
+            pady=6,
+        )
+
+        self._choose_output_btn = ttk.Button(
+            output_buttons_frame,
+            text="Choose Folder",
+            command=self._choose_output_path,
+        )
+        self._choose_output_btn.pack(
+            side="left",
+            padx=(0, 5),
+        )
+
+        self._open_output_btn = ttk.Button(
+            output_buttons_frame,
+            text="Open Results Folder",
+            command=self._open_output_folder,
+            state="disabled",
+        )
+        self._open_output_btn.pack(side="left")
 
         ttk.Label(paths, text="LLM locale:").grid(row=2, column=0, sticky="w", padx=10, pady=(6, 10))
         self._local_provider_combo = ttk.Combobox(paths, state="readonly", width=50)
@@ -399,9 +441,43 @@ class PromptEngineeringGUI:
 
     def _choose_output_path(self) -> None:
         path = filedialog.askdirectory()
+
         if path:
             self._output_path_value = path
             self._output_path_label.configure(text=path)
+            self._open_output_btn.configure(state="normal")
+
+    def _open_output_folder(self) -> None:
+        """
+        Open the Prompt Engineering results directory.
+
+        Prompt Engineering stores generated CSV/JSONL files inside the
+        'output' subdirectory. If that directory does not exist yet,
+        the selected base output directory is opened instead.
+        """
+        base_path = (self._output_path_value or "").strip()
+
+        if not base_path:
+            messagebox.showwarning(
+                "Output folder",
+                "Select an output folder first.",
+            )
+            return
+
+        results_path = os.path.join(base_path, "output")
+
+        if os.path.isdir(results_path):
+            path_to_open = results_path
+        else:
+            path_to_open = base_path
+
+        try:
+            open_folder(path_to_open)
+        except Exception as e:
+            messagebox.showerror(
+                "Output folder",
+                f"Could not open the output folder:\n{e}",
+            )
 
     def _on_test_clicked(self) -> None:
         smell_id = self._current_smell_id
