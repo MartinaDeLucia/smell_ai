@@ -26,6 +26,27 @@ class NormalizationMode(str, Enum):
     STRICT = "strict"
     SALVAGE = "salvage"
 
+class DetectionStatus(str, Enum):
+    SUCCESS = "success"
+    INVALID_RESPONSE = "invalid_response"
+    PROVIDER_ERROR = "provider_error"
+
+
+@dataclass(frozen=True)
+class LLMGenerationResult:
+    """Provider output with optional provider-native reasoning metadata.
+
+    ``response`` is the final answer consumed by the orchestrator.
+    ``native_reasoning`` stores a provider-native thinking trace when the
+    selected model exposes one (for example Ollama thinking-capable models).
+    The tool's user-facing per-finding rationale is kept separately in
+    ``LLMSmellFinding.reasoning`` so it works with every provider.
+    """
+
+    response: str
+    native_reasoning: str = ""
+    metadata: dict[str, Any] = field(default_factory=dict)
+
 
 @dataclass
 class LLMProviderDefinition:
@@ -108,6 +129,19 @@ class LLMCatalog:
                 return
         self.smells.append(smell)
 
+    def get_provider(self, provider_id: str) -> LLMProviderDefinition:
+        for provider in self.providers:
+            if provider.provider_id == provider_id:
+                return provider
+        raise KeyError(f"Unknown provider_id: {provider_id}")
+
+    def upsert_provider(self, provider: LLMProviderDefinition) -> None:
+        for index, existing in enumerate(self.providers):
+            if existing.provider_id == provider.provider_id:
+                self.providers[index] = provider
+                return
+        self.providers.append(provider)
+
 
 @dataclass(frozen=True)
 class DetectionTarget:
@@ -124,6 +158,7 @@ class LLMSmellFinding:
     smell_name: str
     line: int
     description: str
+    reasoning: str = ""
     additional_info: str = ""
     smell_id: Optional[str] = None
     confidence: Optional[float] = None
@@ -136,5 +171,16 @@ class LLMSmellFinding:
             "smell_name": self.smell_name,
             "line": self.line,
             "description": self.description,
+            "reasoning": self.reasoning,
             "additional_info": self.additional_info,
         }
+
+
+@dataclass(frozen=True)
+class DetectionResult:
+    filename: str
+    smell_id: str
+    status: DetectionStatus
+    findings: tuple[LLMSmellFinding, ...] = ()
+    raw_response: Optional[str] = None
+    error: Optional[str] = None

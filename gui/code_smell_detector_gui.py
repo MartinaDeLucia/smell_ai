@@ -1,15 +1,18 @@
+import json
 import os
 import sys
 import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
+
 from components.project_analyzer import ProjectAnalyzer
 from gui.textbox_redirect import TextBoxRedirect
+from gui.folder_utils import open_folder
 from llm_detection.catalog_service import LLMCatalogService
 from llm_detection.types import ProviderKind, PromptMode
 from llm_detection.providers import LocalLLMProvider, ApiLLMProvider
 from llm_detection.orchestrator import LLMOrchestrator
-
+from gui.ollama_model_manager_gui import OllamaModelManagerDialog
 
 class CodeSmellDetectorGUI:
     """
@@ -56,14 +59,33 @@ class CodeSmellDetectorGUI:
         )
         self.output_path.grid(row=1, column=1, sticky="w", padx=5, pady=2)
 
+        output_buttons_frame = tk.Frame(self.master)
+        output_buttons_frame.grid(
+            row=1,
+            column=2,
+            padx=5,
+            pady=2,
+            sticky="w",
+        )
+
         self.output_button = tk.Button(
-            self.master,
-            text="Choose Output Folder",
+            output_buttons_frame,
+            text="Choose Folder",
             bg="lightblue",
             command=self.choose_output_path,
         )
-        self.output_button.grid(row=1, column=2, padx=5, pady=2)
+        self.output_button.pack(
+            side=tk.LEFT,
+            padx=(0, 4),
+        )
 
+        self.open_output_button = tk.Button(
+            output_buttons_frame,
+            text="Open Results Folder",
+            command=self.open_output_folder,
+            state="disabled",
+        )
+        self.open_output_button.pack(side=tk.LEFT)
         # Walker Selection
         self.walker_label = tk.Label(
             self.master, text="Select number of walkers:"
@@ -136,6 +158,12 @@ class CodeSmellDetectorGUI:
         tk.Label(self.llm_frame, text="Select Provider:").grid(row=1, column=0, sticky="w", pady=5)
         self.provider_combo = ttk.Combobox(self.llm_frame, state="readonly", width=30)
         self.provider_combo.grid(row=1, column=1, sticky="w", pady=5)
+        self.manage_models_button = tk.Button(
+            self.llm_frame,
+            text="Browse / Download Models",
+            command=self.open_model_manager,
+        )
+        self.manage_models_button.grid(row=1, column=2, sticky="w", padx=8, pady=5)
 
         # Code Smell Selection
         tk.Label(self.llm_frame, text="Select Code Smells:").grid(row=2, column=0, sticky="nw", pady=5)
@@ -155,6 +183,14 @@ class CodeSmellDetectorGUI:
         )
         self.smell_listbox.pack(side=tk.LEFT, fill=tk.BOTH)
         smell_scrollbar.config(command=self.smell_listbox.yview)
+
+        self.show_reasoning_var = tk.BooleanVar(value=True)
+        self.show_reasoning_check = tk.Checkbutton(
+            self.llm_frame,
+            text="Show finding reasoning in output",
+            variable=self.show_reasoning_var,
+        )
+        self.show_reasoning_check.grid(row=3, column=1, sticky="w", pady=(0, 5))
 
         # Initialize LLM data
         self.load_llm_data()
@@ -209,8 +245,32 @@ class CodeSmellDetectorGUI:
         Opens a folder selection dialog for output path.
         """
         path = filedialog.askdirectory()
+
         if path:
             self.output_path.configure(text=path)
+            self.open_output_button.configure(state="normal")
+
+    def open_output_folder(self):
+        """
+        Open the selected output directory in the operating system's
+        default file manager.
+        """
+        path = str(self.output_path.cget("text") or "").strip()
+
+        if not path or path == "No path selected":
+            messagebox.showwarning(
+                "Output folder",
+                "Please select an output folder first.",
+            )
+            return
+
+        try:
+            open_folder(path)
+        except Exception as e:
+            messagebox.showerror(
+                "Output folder",
+                f"Could not open the output folder:\n{e}",
+            )
 
     def load_llm_data(self):
         """
@@ -222,6 +282,27 @@ class CodeSmellDetectorGUI:
             self.update_smell_list()
         except Exception as e:
             print(f"Warning: Could not load LLM catalog: {e}")
+
+    def open_model_manager(self):
+        """Open the Ollama model manager and refresh providers after changes."""
+        OllamaModelManagerDialog(
+            self.master,
+            catalog_service=self.catalog_service,
+            on_catalog_changed=self.load_llm_data,
+            on_model_ready=self._select_provider_by_id,
+        )
+
+    def _select_provider_by_id(self, provider_id):
+        """Refresh the local-provider list and select the model chosen in Model Hub."""
+        self.provider_type_var.set("local")
+        self.update_provider_list()
+        catalog = self.catalog_service.load()
+        provider = next(
+            (p for p in catalog.providers if p.provider_id == provider_id and p.kind == ProviderKind.LOCAL),
+            None,
+        )
+        if provider is not None:
+            self.provider_combo.set(provider.display_name)
 
     def toggle_llm_controls(self):
         """
@@ -237,6 +318,7 @@ class CodeSmellDetectorGUI:
         Update provider combobox based on selected provider type (Local/API).
         """
         try:
+            self.catalog = self.catalog_service.load()
             provider_type = self.provider_type_var.get()
             kind = ProviderKind.LOCAL if provider_type == "local" else ProviderKind.API
             
@@ -304,6 +386,7 @@ class CodeSmellDetectorGUI:
         
         # LLM parameters
         use_llm = self.llm_var.get()
+        show_reasoning = self.show_reasoning_var.get()
         llm_provider_id = None
         selected_smell_ids = []
         
@@ -364,6 +447,7 @@ class CodeSmellDetectorGUI:
                 use_llm,
                 llm_provider_id,
                 selected_smell_ids,
+                show_reasoning,
             ),
             daemon=True,
         )
@@ -380,6 +464,7 @@ class CodeSmellDetectorGUI:
         use_llm=False,
         llm_provider_id=None,
         selected_smell_ids=None,
+        show_reasoning=True,
     ):
         """
         Performs the actual analysis. This runs on a separate thread.
@@ -455,7 +540,8 @@ class CodeSmellDetectorGUI:
                     input_path, 
                     output_path, 
                     llm_provider_id, 
-                    selected_smell_ids
+                    selected_smell_ids,
+                    show_reasoning=show_reasoning,
                 )
 
         except Exception as e:
@@ -474,13 +560,20 @@ class CodeSmellDetectorGUI:
                     return True
         return False
 
-    def _run_llm_detection(self, input_path, output_path, provider_id, smell_ids):
-        """
-        Run LLM detection on the input path and save results.
-        """
+    def _run_llm_detection(
+        self,
+        input_path,
+        output_path,
+        provider_id,
+        smell_ids,
+        show_reasoning=True,
+    ):
+        """Run LLM detection on the input path and save explainable results."""
         try:
-            # Get provider configuration
-            provider_def = self.catalog_service.get_provider(provider_id)
+            # Reload the catalog at run time so prompt/model changes made in other
+            # windows are immediately visible.
+            self.catalog = self.catalog_service.load()
+            provider_def = self.catalog.get_provider(provider_id)
             
             # Create provider instance
             if provider_def.kind == ProviderKind.LOCAL:
@@ -489,7 +582,8 @@ class CodeSmellDetectorGUI:
                     model_name=config.get("model_name", "qwen2.5-coder:7b"),
                     host=config.get("host"),
                     options=config.get("options"),
-                    response_format=config.get("format")
+                    response_format=config.get("format"),
+                    think=config.get("think"),
                 )
                 print(f"Using local LLM: {provider_def.display_name}")
             else:
@@ -563,10 +657,21 @@ class CodeSmellDetectorGUI:
                 for filename in sorted(findings_by_file.keys()):
                     file_findings = findings_by_file[filename]
                     print(f"  - {filename}: {len(file_findings)} code smell(s)")
+
+                if show_reasoning:
+                    print("\n--- Finding Reasoning ---")
+                    for finding in findings:
+                        rationale = (getattr(finding, "reasoning", "") or "").strip()
+                        print(
+                            f"{finding.filename}:{finding.line} [{finding.smell_name}] "
+                            f"{rationale or '(reasoning not returned by model)'}"
+                        )
             
-            # Save results
+            # Save results. The CSV contains the portable per-finding reasoning;
+            # a JSONL sidecar preserves provider-native thinking when available.
             if findings:
                 self._save_llm_findings(findings, output_path)
+                self._save_llm_traces(orchestrator.last_traces, output_path)
                 print(f"\nLLM findings saved to: {output_path}")
             else:
                 print("\nNo LLM findings detected.")
@@ -575,6 +680,31 @@ class CodeSmellDetectorGUI:
             print(f"Error during LLM detection: {e}")
             import traceback
             traceback.print_exc()
+
+    def _save_llm_traces(self, traces, output_path):
+        """Persist raw final responses and optional provider-native thinking."""
+        if not traces:
+            return
+
+        os.makedirs(output_path, exist_ok=True)
+        trace_file = os.path.join(output_path, "llm_generation_trace.jsonl")
+        with open(trace_file, "w", encoding="utf-8") as handle:
+            for trace in traces:
+                handle.write(
+                    json.dumps(
+                        {
+                            "filename": trace.filename,
+                            "smell_id": trace.smell_id,
+                            "response": trace.response,
+                            "native_reasoning": trace.native_reasoning,
+                            "metadata": trace.metadata or {},
+                        },
+                        ensure_ascii=False,
+                        default=str,
+                    )
+                    + "\n"
+                )
+        print(f"LLM generation trace saved to: {trace_file}")
 
     def _save_llm_findings(self, findings, output_path):
         """

@@ -1,0 +1,105 @@
+{
+  "schema_version": 1,
+  "verified_on": "2026-09-25",
+  "source": "Ollama Library",
+  "models": [
+    {
+      "model_id": "qwen2.5-coder",
+      "name": "Qwen 2.5 Coder",
+      "publisher": "Alibaba",
+      "summary": "Code-specialized model family focused on code generation, code reasoning and code fixing.",
+      "categories": ["coding", "recommended"],
+      "capabilities": ["Coding", "Code reasoning", "Code fixing", "Tools"],
+      "official_url": "https://ollama.com/library/qwen2.5-coder",
+      "default_tag": "qwen2.5-coder:7b",
+      "variants": [
+        {"tag": "qwen2.5-coder:0.5b", "parameters": "0.5B", "download": "398 MB", "download_bytes": 417333248, "context": "32K", "profile": "Tiny"},
+        {"tag": "qwen2.5-coder:1.5b", "parameters": "1.5B", "download": "986 MB", "download_bytes": 1033895936, "context": "32K", "profile": "Lightweight"},
+        {"tag": "qwen2.5-coder:3b", "parameters": "3B", "download": "1.9 GB", "download_bytes": 2040109466, "context": "32K", "profile": "Lightweight"},
+        {"tag": "qwen2.5-coder:7b", "parameters": "7B", "download": "4.7 GB", "download_bytes": 5046586573, "context": "32K", "profile": "Balanced"},
+        {"tag": "qwen2.5-coder:14b", "parameters": "14B", "download": "9.0 GB", "download_bytes": 9663676416, "context": "32K", "profile": "Large"},
+        {"tag": "qwen2.5-coder:32b", "parameters": "32B", "download": "20 GB", "download_bytes": 21474836480, "context": "32K", "profile": "Very large"}
+      ]
+    },
+    {
+      "model_id": "qwen3",
+      "name": "Qwen 3",
+      "publisher": "Alibaba",
+      "summary": "General-purpose family with strong reasoning and coding capabilities plus native thinking support in Ollama.",
+      "categories": ["reasoning", "coding", "recommended"],
+      "capabilities": ["Reasoning", "Coding", "Native thinking", "Tools"],
+      "official_url": "https://ollama.com/library/qwen3",
+      "default_tag": "qwen3:8b",
+      "variants": [
+        {"tag": "qwen3:0.6b", "parameters": "0.6B", "download": "523 MB", "download_bytes": 548405248, "context": "40K", "profile": "Tiny"},
+        {"tag": "qwen3:1.7b", "parameters": "1.7B", "download": "1.4 GB", "download_bytes": 1503238554, "context": "40K", "profile": "Lightweight"},
+        {"tag": "qwen3:4b", "parameters": "4B", "download": "2.5 GB", "download_bytes": 2684354560, "context": "256K", "profile": "Lightweight"},
+        {"tag": "qwen3:8b", "parameters": "8B", "download": "5.2 GB", "download_bytes": 5583457485, "context": "40K", "profile": "Balanced"},
+        {"tag": "qwen3:14b", "parameters": "14B", "download": "9.3 GB", "download_bytes": 9985798963, "context": "40K", "profile": "Large"},
+        {"tag": "qwen3:30b", "parameters": "30B MoE", "download": "19 GB", "download_bytes": 20401094656, "context": "256K", "profile": "Very large"},
+        {"tag": "qwen3:32b", "parameters": "32B", "download": "20 GB", "download_bytes": 21474836480, "context": "40K", "profile": "Very large"}
+      ]
+    },
+    {
+      "model_id": "qwen3-coder",
+      "name": "Qwen 3 Coder",
+      "publisher": "Alibaba",
+      "summary": "Long-context model family aimed at coding and agentic software-engineering tasks.",
+      "categories": ["coding", "agentic"],
+      "capabilities": ["Coding", "Agentic tasks", "Tools", "Long context"],
+      "official_url": "https://ollama.com/library/qwen3-coder",
+      "default_tag": "qwen3-coder:30b",
+      "variants": [
+        {"tag": "qwen3-coder:30b", "parameters": "30B MoE", "download": "19 GB", "download_bytes": 20401094656, "context": "256K", "profile": "Very large"},
+        {"tag": "qwen3-coder:480b", "parameters": "480B MoE", "download": "290 GB", "download_bytes": 311385128960, "context": "256K", "profile": "Extreme"}
+      ]
+    },
+    {
+      "model_id": "deepseek-coder-v2",
+      "name": "DeepSeek Coder V2",
+      "publisher": "DeepSeek",
+      "summary": "Mixture-of-Experts code model for code generation and code-specific reasoning tasks.",
+      "categories": ["coding"],
+      "capabilities": ["Coding", "Code reasoning", "Long context", "MoE"],
+      "official_url": "https://ollama.com/library/deepseek-coder-v2",
+      "default_tag": "deepseek-coder-v2:16b",
+      "variants": [
+        {"tag": "deepseek-coder-v2:16b", "parameters": "16B MoE", "download": "8.9 GB", "download_bytes": 9556302234, "context": "160K", "profile": "Large"},
+        {"tag": "deepseek-coder-v2:236b", "parameters": "236B MoE", "download": "133 GB", "download_bytes": 142807662592, "context": "4K", "profile": "Extreme"}
+      ]
+    },
+    {
+      "model_id": "gemma3",
+      "name": "Gemma 3",
+      "publisher": "Google",
+      "summary": "Compact general-purpose family with several small variants; useful when local resources are limited.",
+      "categories": ["general", "lightweight"],
+      "capabilities": ["General reasoning", "Multilingual", "Vision on 4B+", "Long context on 4B+"],
+      "official_url": "https://ollama.com/library/gemma3",
+      "default_tag": "gemma3:4b",
+      "variants": [
+        {"tag": "gemma3:270m", "parameters": "270M", "download": "292 MB", "download_bytes": 306184192, "context": "32K", "profile": "Tiny"},
+        {"tag": "gemma3:1b", "parameters": "1B", "download": "815 MB", "download_bytes": 854589440, "context": "32K", "profile": "Tiny"},
+        {"tag": "gemma3:4b", "parameters": "4B", "download": "3.3 GB", "download_bytes": 3543348019, "context": "128K", "profile": "Lightweight"},
+        {"tag": "gemma3:12b", "parameters": "12B", "download": "8.1 GB", "download_bytes": 8697308774, "context": "128K", "profile": "Large"},
+        {"tag": "gemma3:27b", "parameters": "27B", "download": "17 GB", "download_bytes": 18253611008, "context": "128K", "profile": "Very large"}
+      ]
+    },
+    {
+      "model_id": "codellama",
+      "name": "Code Llama",
+      "publisher": "Meta",
+      "summary": "Established code model family for generating, discussing and reviewing code; included mainly for compatibility and comparison.",
+      "categories": ["coding", "legacy"],
+      "capabilities": ["Coding", "Code review", "Infill variants", "Python variant"],
+      "official_url": "https://ollama.com/library/codellama",
+      "default_tag": "codellama:7b",
+      "variants": [
+        {"tag": "codellama:7b", "parameters": "7B", "download": "3.8 GB", "download_bytes": 4080218931, "context": "16K", "profile": "Balanced"},
+        {"tag": "codellama:13b", "parameters": "13B", "download": "7.4 GB", "download_bytes": 7945689498, "context": "16K", "profile": "Large"},
+        {"tag": "codellama:34b", "parameters": "34B", "download": "19 GB", "download_bytes": 20401094656, "context": "16K", "profile": "Very large"},
+        {"tag": "codellama:70b", "parameters": "70B", "download": "39 GB", "download_bytes": 41875931136, "context": "2K", "profile": "Extreme"}
+      ]
+    }
+  ]
+}

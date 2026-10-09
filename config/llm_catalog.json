@@ -6,7 +6,7 @@
       "display_name": "chain index",
       "description": "Smell fittizio inserito per provare l'interfaccia di Prompt Engineering (UC02).",
       "default_prompt": "Detect the code smell called \"Pandas Chained Indexing\" (often called \"Chain Indexing\").\n\nDEFINITION:\nA Pandas Chained Indexing smell occurs when a pandas DataFrame is accessed with two consecutive bracket indexers, typically like df[col][row] or df[mask][col].\nThis is problematic because it can return a view vs copy unpredictably and can cause SettingWithCopy issues.\nPreferred alternatives are explicit indexers, e.g. df.loc[row, col] or df.iloc[row, col].\n\nDETECTION RULES:\n- Flag any expression of the form: <df_expr>[...][...] (two consecutive bracket indexers).\n- Treat BOTH reads and writes as findings.\n- Scan the ENTIRE file and return ALL occurrences as separate findings (do not group).\n- Be conservative to avoid false positives.",
-      "draft_prompt": "Detect the code smell called \"Pandas Chained Indexing\" (often called \"Chain Indexing\").\n\nDEFINITION:\nA Pandas Chained Indexing smell occurs when a pandas DataFrame is accessed with two consecutive bracket indexers, typically like df[col][row] or df[mask][col].\nThis is problematic because it can return a view vs copy unpredictably and can cause SettingWithCopy issues.\nPreferred alternatives are explicit indexers, e.g. df.loc[row, col] or df.iloc[row, col].\n\nDETECTION RULES:\n- Flag any expression of the form: <df_expr>[...][...] (two consecutive bracket indexers).\n- Treat BOTH reads and writes as findings.\n- Scan the ENTIRE file and return ALL occurrences as separate findings (do not group).\n- Be conservative to avoid false positives.",
+      "draft_prompt": "Detect the code smell called \"Chain Indexing\" (CIDX).\n\nDEFINITION:\nFor this benchmark, Chain Indexing is defined operationally as an\nexpression containing two consecutive Python subscript/indexing\noperations:\n\n    <expression>[...][...]\n\nExamples:\n    df[\"column\"][0]\n    df[mask][\"column\"]\n    metrics[\"support\"][\"macro\"]\n    result[\"f-beta\"][\"weighted\"]\n\nDETECTION RULES:\n- Flag every nested subscript expression of the form <expression>[...][...].\n- Do NOT require proving that the base expression is a pandas DataFrame.\n- Treat both reads and writes as findings.\n- Report the source line where the outer chained indexing expression occurs.\n- Scan the entire file and return ALL occurrences separately.\n- Do not flag nested indexing that is not consecutive, e.g. df[x[0]].",
       "created_by_user": true,
       "enabled": true
     }
@@ -15,15 +15,15 @@
     {
       "provider_id": "local-ollama-qwen",
       "kind": "local",
-      "display_name": "Ollama - Qwen 2.5 Coder 7B",
+      "display_name": "Ollama - qwen2.5-coder:7b",
       "config": {
         "host": "http://localhost:11434",
         "format": "json",
         "model_name": "qwen2.5-coder:7b",
         "options": {
-          "num_predict": 256,
-          "num_ctx": 2048,
-          "temperature": 0
+          "temperature": 0,
+          "num_predict": 1024,
+          "num_ctx": 12288
         }
       }
     },
@@ -36,8 +36,8 @@
         "format": "json",
         "model_name": "gemma3:4b",
         "options": {
-          "num_predict": 256,
-          "num_ctx": 2048,
+          "num_predict": 768,
+          "num_ctx": 8192,
           "temperature": 0
         }
       }
@@ -48,6 +48,22 @@
       "display_name": "Generic API (stub)",
       "config": {
         "base_url": "http://localhost:8000"
+      }
+    },
+    {
+      "provider_id": "local-ollama-qwen34b",
+      "kind": "local",
+      "display_name": "Ollama - qwen3:4b",
+      "config": {
+        "host": "http://localhost:11434/",
+        "format": "json",
+        "model_name": "qwen3:4b",
+        "options": {
+          "temperature": 0,
+          "num_predict": 8192,
+          "num_ctx": 12288
+        },
+        "think": false
       }
     }
   ]
