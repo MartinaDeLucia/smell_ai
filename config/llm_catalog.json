@@ -43,14 +43,6 @@
       }
     },
     {
-      "provider_id": "api-generic",
-      "kind": "api",
-      "display_name": "Generic API (stub)",
-      "config": {
-        "base_url": "http://localhost:8000"
-      }
-    },
-    {
       "provider_id": "local-ollama-qwen34b",
       "kind": "local",
       "display_name": "Ollama - qwen3:4b",
