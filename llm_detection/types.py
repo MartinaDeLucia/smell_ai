@@ -34,18 +34,29 @@ class DetectionStatus(str, Enum):
 
 @dataclass(frozen=True)
 class LLMGenerationResult:
-    """Provider output with optional provider-native reasoning metadata.
+    """
+    Complete result returned by an LLM provider.
 
-    ``response`` is the final answer consumed by the orchestrator.
-    ``native_reasoning`` stores a provider-native thinking trace when the
-    selected model exposes one (for example Ollama thinking-capable models).
-    The tool's user-facing per-finding rationale is kept separately in
-    ``LLMSmellFinding.reasoning`` so it works with every provider.
+    response:
+        Final assistant output consumed by the orchestrator.
+
+    native_reasoning:
+        Optional provider-native thinking/reasoning trace.
+        This is NOT the user-facing CodeSmile reasoning.
+
+    metadata:
+        Provider metadata such as model, token usage, latency,
+        finish reason, request id, etc.
+
+    raw_provider_response:
+        Complete provider response when available.
+        Particularly useful for paid API calls and reproducibility.
     """
 
     response: str
     native_reasoning: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
+    raw_provider_response: Optional[str] = None
 
 
 @dataclass
@@ -178,9 +189,20 @@ class LLMSmellFinding:
 
 @dataclass(frozen=True)
 class DetectionResult:
+    """
+    Result of one file × smell detection.
+
+    assessment is the developer-facing natural-language analysis.
+
+    findings contains the normalized, machine-readable occurrences.
+    """
+
     filename: str
     smell_id: str
     status: DetectionStatus
     findings: tuple[LLMSmellFinding, ...] = ()
+
+    assessment: str = ""
+
     raw_response: Optional[str] = None
     error: Optional[str] = None

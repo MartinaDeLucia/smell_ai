@@ -215,6 +215,213 @@ class LLMCatalogService:
         self.save(catalog)
         return provider_id
 
+    def add_or_update_api_provider(
+            self,
+            *,
+            display_name: str,
+            base_url: str,
+            model_name: str,
+            protocol: str = "openai_compatible",
+            timeout_s: float = 60.0,
+            options: Optional[dict] = None,
+            supports_structured_output: bool = True,
+            existing_provider_id: Optional[str] = None,
+    ) -> str:
+        """
+        Persist a remote API provider.
+
+        API keys are deliberately NOT accepted here,
+        therefore they can never end up inside llm_catalog.json.
+        """
+
+        display_name = (
+                display_name or ""
+        ).strip()
+
+        base_url = (
+                base_url or ""
+        ).strip().rstrip("/")
+
+        model_name = (
+                model_name or ""
+        ).strip()
+
+        protocol = (
+                protocol or ""
+        ).strip()
+
+        if not display_name:
+            raise CatalogValidationError(
+                "Display name must not be empty"
+            )
+
+        if not base_url:
+            raise CatalogValidationError(
+                "Base URL must not be empty"
+            )
+
+        if not model_name:
+            raise CatalogValidationError(
+                "Model name must not be empty"
+            )
+
+        if protocol not in {
+            "openai_compatible",
+            "generic_http",
+        }:
+            raise CatalogValidationError(
+                f"Unsupported API protocol: "
+                f"{protocol}"
+            )
+
+        if timeout_s <= 0:
+            raise CatalogValidationError(
+                "Timeout must be greater "
+                "than zero"
+            )
+
+        catalog = self.load()
+
+        existing = None
+
+        if existing_provider_id:
+            existing = catalog.get_provider(
+                existing_provider_id
+            )
+
+            if (
+                    existing.kind
+                    != ProviderKind.API
+            ):
+                raise CatalogValidationError(
+                    f"Provider "
+                    f"'{existing_provider_id}' "
+                    "is not an API provider"
+                )
+
+        else:
+            # Avoid duplicates with the same
+            # protocol + URL + model.
+            existing = next(
+                (
+                    provider
+                    for provider
+                    in catalog.providers
+                    if (
+                        provider.kind
+                        == ProviderKind.API
+                        and str(
+                    provider.config.get(
+                        "protocol"
+                    )
+                    or "generic_http"
+                )
+                        == protocol
+                        and str(
+                    provider.config.get(
+                        "base_url"
+                    )
+                    or ""
+                ).rstrip("/")
+                        == base_url
+                        and str(
+                    provider.config.get(
+                        "model_name"
+                    )
+                    or ""
+                )
+                        == model_name
+                )
+                ),
+                None,
+            )
+
+        provider_id = (
+            existing.provider_id
+            if existing is not None
+            else self._next_available_provider_id(
+                catalog,
+                f"api-{_slugify(display_name)}",
+            )
+        )
+
+        config = (
+            dict(existing.config)
+            if existing is not None
+            else {}
+        )
+
+        config.update(
+            {
+                "protocol":
+                    protocol,
+
+                "base_url":
+                    base_url,
+
+                "model_name":
+                    model_name,
+
+                "timeout_s":
+                    float(timeout_s),
+
+                "options":
+                    dict(options or {}),
+
+                "supports_structured_output":
+                    bool(
+                        supports_structured_output
+                    ),
+            }
+        )
+
+        provider = LLMProviderDefinition(
+            provider_id=provider_id,
+            kind=ProviderKind.API,
+            display_name=display_name,
+            config=config,
+        )
+
+        catalog.upsert_provider(
+            provider
+        )
+
+        self.save(
+            catalog
+        )
+
+        return provider_id
+
+    def remove_provider(
+            self,
+            provider_id: str,
+    ) -> None:
+
+        catalog = self.load()
+
+        if not any(
+                provider.provider_id
+                == provider_id
+                for provider
+                in catalog.providers
+        ):
+            raise KeyError(
+                f"Unknown provider_id: "
+                f"{provider_id}"
+            )
+
+        catalog.providers = [
+            provider
+            for provider
+            in catalog.providers
+            if provider.provider_id
+               != provider_id
+        ]
+
+        self.save(
+            catalog
+        )
+
     # -------- Targets / path handling --------
 
     @staticmethod
