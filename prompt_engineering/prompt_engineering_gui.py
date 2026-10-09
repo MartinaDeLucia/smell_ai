@@ -101,8 +101,8 @@ class PromptEngineeringGUI:
         best = ttk.Label(
             mode_frame,
             text=(
-                "Best practices: nello smell prompt scrivi SOLO definizione + regole smell-specific. "
-                "Non includere schema JSON/contratti di output: li impone già l’orchestrator."
+                "Best practices: Include ONLY the definition and smell-specific rules in the prompt. "
+                "Do not include JSON schemas or output contracts; the orchestrator already enforces them."
             ),
             foreground="#444",
             wraplength=820,
@@ -114,7 +114,7 @@ class PromptEngineeringGUI:
 
         self._draft_radio = ttk.Radiobutton(
             radio_row,
-            text="Temporaneo (modificabile)",
+            text="Draft (editable)",
             value=PromptMode.DRAFT.value,
             variable=self._mode_var,
             command=self._on_prompt_mode_changed,
@@ -123,7 +123,7 @@ class PromptEngineeringGUI:
 
         self._default_radio = ttk.Radiobutton(
             radio_row,
-            text="Default (sola lettura)",
+            text="Default (read-only)",
             value=PromptMode.DEFAULT.value,
             variable=self._mode_var,
             command=self._on_prompt_mode_changed,
@@ -196,7 +196,7 @@ class PromptEngineeringGUI:
         )
         self._open_output_btn.pack(side="left")
 
-        ttk.Label(paths, text="LLM locale:").grid(row=2, column=0, sticky="w", padx=10, pady=(6, 10))
+        ttk.Label(paths, text="Local LLM:").grid(row=2, column=0, sticky="w", padx=10, pady=(6, 10))
         self._local_provider_combo = ttk.Combobox(paths, state="readonly", width=50)
         self._local_provider_combo.grid(row=2, column=1, sticky="w", pady=(6, 10))
         self._local_provider_combo.bind("<<ComboboxSelected>>", lambda _e: self._on_local_provider_selected())
@@ -212,7 +212,7 @@ class PromptEngineeringGUI:
         actions.grid(row=3, column=0, sticky="ew", padx=10)
         actions.grid_columnconfigure(0, weight=1)
 
-        self._test_btn = ttk.Button(actions, text="Test con LLM locale", command=self._on_test_clicked)
+        self._test_btn = ttk.Button(actions, text="Test with Local LLM", command=self._on_test_clicked)
         self._test_btn.grid(row=0, column=0, sticky="w")
 
         self._cancel_btn = ttk.Button(actions, text="Cancel", command=self._on_cancel_clicked)
@@ -221,7 +221,7 @@ class PromptEngineeringGUI:
 
         self._save_default_btn = ttk.Button(
             actions,
-            text="Salva temporaneo come default",
+            text="Save Draft as Default",
             command=self._on_save_default_clicked,
         )
         self._save_default_btn.grid(row=0, column=1, sticky="w", padx=(10, 0))
@@ -237,7 +237,7 @@ class PromptEngineeringGUI:
         self._progress.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(4, 0))
 
         # Output
-        out = ttk.LabelFrame(self.master, text="Risultati / Log")
+        out = ttk.LabelFrame(self.master, text="Results / Log")
         out.grid(row=4, column=0, sticky="nsew", padx=10, pady=10)
         out.grid_columnconfigure(0, weight=1)
         out.grid_rowconfigure(0, weight=1)
@@ -264,7 +264,7 @@ class PromptEngineeringGUI:
             self._ui_disabled_no_smells = True
             self._disable_all_controls_no_smells()
             self._append_output(
-                "Catalogo smell vuoto: aggiungi almeno uno smell con '+' per procedere.\n"
+                "The code smell catalog is empty. Add a code smell using '+' to continue.\n"
             )
             return
 
@@ -307,8 +307,8 @@ class PromptEngineeringGUI:
             self._local_provider_combo.configure(state="disabled")
             self._selected_local_provider_id = None
             self._append_output(
-                "Nessun modello locale configurato. "
-                "Usa 'Browse / Download Models' per scegliere, scaricare o registrare un modello Ollama.\n"
+                "No local models are configured. "
+                "Use 'Browse / Download Models' to select, download, or register an Ollama model.\n"
             )
             self._sync_test_button_state()
             return
@@ -382,7 +382,7 @@ class PromptEngineeringGUI:
         AddSmellDialog(self.master, self.catalog_service, on_success)
 
     def _on_smell_selected(self) -> None:
-        if not self._confirm_discard_unsaved_draft_if_needed(context="cambiare smell"):
+        if not self._confirm_discard_unsaved_draft_if_needed(context="change the selected code smell"):
             self._restore_combo_to_current_smell()
             return
 
@@ -402,7 +402,7 @@ class PromptEngineeringGUI:
 
     def _on_prompt_mode_changed(self) -> None:
         if self._mode_var.get() == PromptMode.DEFAULT.value:
-            if not self._confirm_discard_unsaved_draft_if_needed(context="passare al prompt di default"):
+            if not self._confirm_discard_unsaved_draft_if_needed(context="switch to the default prompt"):
                 self._mode_var.set(PromptMode.DRAFT.value)
                 return
         self._draft_dirty = False
@@ -482,14 +482,14 @@ class PromptEngineeringGUI:
     def _on_test_clicked(self) -> None:
         smell_id = self._current_smell_id
         if not smell_id:
-            messagebox.showerror("Errore", "Seleziona uno smell.")
+            messagebox.showerror("Error", "Select a code smell.")
             return
 
         provider_id = (self._selected_local_provider_id or "").strip()
         if not provider_id:
             messagebox.showerror(
-                "Errore",
-                "Nessun provider LLM locale selezionato. Configura un provider locale nel catalogo.",
+                "Error",
+                "No local LLM provider is selected. Configure a local provider in the catalog.",
             )
             return
 
@@ -501,16 +501,16 @@ class PromptEngineeringGUI:
         try:
             self.catalog_service.validate_prompt_engineering_input_path(input_path)
         except CatalogValidationError as e:
-            messagebox.showerror("Input path non valido", str(e))
+            messagebox.showerror("Invalid Input Path", str(e))
             return
 
         if not output_path:
-            messagebox.showerror("Errore", "Output path mancante.")
+            messagebox.showerror("Error", "Select an output folder.")
             return
 
         prompt_text = self._get_current_prompt_text().strip()
         if not prompt_text:
-            messagebox.showerror("Errore", "Il prompt è vuoto.")
+            messagebox.showerror("Error", "The prompt is empty.")
             return
 
         # UC02 step 10: persist draft when testing
@@ -519,19 +519,19 @@ class PromptEngineeringGUI:
                 self.catalog_service.save_draft_prompt(smell_id, prompt_text)
                 self._draft_dirty = False
             except CatalogValidationError as e:
-                messagebox.showerror("Errore", str(e))
+                messagebox.showerror("Error", str(e))
                 return
 
         python_files = FileUtils.get_python_files(input_path)
         if not python_files:
-            messagebox.showerror("Errore", "Input path contains no Python files (.py)")
+            messagebox.showerror("Error", "The input folder contains no Python (.py) files.")
             return
 
         if len(python_files) > 15:
             ok = messagebox.askyesno(
-                "Conferma",
-                f"L'input contiene {len(python_files)} file .py.\n"
-                "Il test potrebbe richiedere molto tempo.\n\nContinuare?",
+                "Confirmation",
+                f"The input folder contains {len(python_files)} .py files.\n"
+                "The test may take a long time.\n\nContinue?",
             )
             if not ok:
                 return
@@ -572,30 +572,30 @@ class PromptEngineeringGUI:
         if self._cancel_event.is_set():
             return
         self._cancel_event.set()
-        self._append_output("Richiesta cancellazione: il test si fermerà dopo il file corrente.\n")
+        self._append_output("Cancellation requested. The test will stop after the current file.\n")
 
     def _on_save_default_clicked(self) -> None:
         smell_id = self._current_smell_id
         if not smell_id:
-            messagebox.showerror("Errore", "Seleziona uno smell.")
+            messagebox.showerror("Error", "Select a code smell.")
             return
 
         if self._mode_var.get() == PromptMode.DRAFT.value:
             prompt_text = self._get_current_prompt_text().strip()
             if not prompt_text:
-                messagebox.showerror("Errore", "Il prompt temporaneo è vuoto.")
+                messagebox.showerror("Error", "The draft prompt is empty.")
                 return
             try:
                 self.catalog_service.save_draft_prompt(smell_id, prompt_text)
                 self._draft_dirty = False
             except CatalogValidationError as e:
-                messagebox.showerror("Errore", str(e))
+                messagebox.showerror("Error", str(e))
                 return
 
         ok = messagebox.askyesno(
-            "Conferma",
-            "Salvare il prompt temporaneo come prompt di default?\n"
-            "(Lo smell diventerà selezionabile per la detection LLM.)",
+            "Confirmation",
+            "Save the draft prompt as the default prompt?\n"
+            "(This code smell will become available for LLM-based detection.)",
         )
         if not ok:
             return
@@ -603,10 +603,10 @@ class PromptEngineeringGUI:
         try:
             self.catalog_service.promote_draft_to_default(smell_id)
         except Exception as e:
-            messagebox.showerror("Errore", str(e))
+            messagebox.showerror("Error", str(e))
             return
 
-        self._append_output("Prompt salvato come default.\n")
+        self._append_output("Prompt saved as default.\n")
         self._mode_var.set(PromptMode.DEFAULT.value)
         self._refresh_prompt_view()
 
@@ -617,17 +617,17 @@ class PromptEngineeringGUI:
         if not self._draft_dirty:
             return True
         return messagebox.askyesno(
-            "Modifiche non salvate",
-            "Ci sono modifiche al prompt temporaneo non salvate (non hai lanciato il test).\n"
-            f"Se continui, verranno perse ({context}).\n\nContinuare?",
+            "Unsaved Changes",
+            "The draft prompt has unsaved changes (the test has not been run).\n"
+            f"If you continue to {context}, these changes will be lost.\n\nContinue?",
         )
 
     def _on_close(self) -> None:
         if self._draft_dirty:
             ok = messagebox.askyesno(
-                "Uscita",
-                "Ci sono modifiche non salvate al prompt temporaneo.\n"
-                "Uscire comunque?",
+                "Exit",
+                "The draft prompt has unsaved changes.\n"
+                "Exit anyway?",
             )
             if not ok:
                 return
@@ -675,7 +675,7 @@ class PromptEngineeringGUI:
                     self._running_index = i
                     self._running_total = n
                     self._running_filename = os.path.basename(fn)
-                    self._append_output(f"[{i}/{n}] Avvio analisi: {os.path.basename(fn)} (chars: {chars})\n")
+                    self._append_output(f"[{i}/{n}] Starting analysis: {os.path.basename(fn)} (chars: {chars})\n")
 
                 self.master.after(0, _ui_start_file)
 
@@ -735,43 +735,43 @@ class PromptEngineeringGUI:
                 self._progress.configure(mode="determinate", maximum=max(1, total), value=min(total, total))
 
                 self._append_output(
-                    f"Test completato. Prompts sent: {prompts_sent} | "
+                    f"Test completed. Prompts sent: {prompts_sent} | "
                     f"Targets: {total} | Findings: {len(all_findings)} "
                     f"(valid: {len(valid_findings)} | parse_errors: {parse_error_count})\n"
                 )
                 self._append_output(f"Analysis completed. Total code smells found: {len(valid_findings)}\n")
                 self._append_output(f"Output folder: {output_dir}\n")
-                self._append_output(f"Risultati salvati in: {out_file}\n")
-                self._append_output(f"Raw responses salvate in: {raw_file}\n")
+                self._append_output(f"Results saved to: {out_file}\n")
+                self._append_output(f"Raw responses saved to: {raw_file}\n")
                 self._append_output(f"CSV rows: {csv_rows} | CSV bytes: {csv_size}\n")
                 self._append_output(f"Raw bytes: {raw_size}\n")
 
                 if df.empty:
                     if parse_error_count > 0:
-                        self._append_output("Nessun finding valido estratto (solo parse/validation errors).\n")
+                        self._append_output("No valid findings extracted (only parsing/validation errors).\n")
                     else:
-                        self._append_output("Nessun finding restituito dall'LLM.\n")
+                        self._append_output("No findings returned by the LLM.\n")
                 else:
-                    self._append_output("Findings validi generati e salvati su CSV.\n")
+                    self._append_output("Valid findings generated and saved to CSV.\n")
                     self._append_output("\nReasoning preview:\n")
                     for finding in valid_findings[:20]:
                         rationale = (getattr(finding, "reasoning", "") or "").strip()
                         self._append_output(
                             f"- {os.path.basename(finding.filename)}:{finding.line} "
-                            f"[{finding.smell_name}] {rationale or '(reasoning non restituito)'}\n"
+                            f"[{finding.smell_name}] {rationale or '(no reasoning provided)'}\n"
                         )
                     if len(valid_findings) > 20:
                         self._append_output(
-                            f"... altri {len(valid_findings) - 20} finding nel CSV.\n"
+                            f"... more {len(valid_findings) - 20} findings in the CSV.\n"
                         )
 
                 if any(getattr(f, "line", None) <= 0 for f in all_findings):
                     self._append_output(
-                        "Nota: almeno una risposta non era JSON valido o era troncata. "
-                        "Vedi *_raw.jsonl per la risposta grezza.\n"
+                        "Note: At least one response contained invalid or truncated JSON. "
+                        "See *_raw.jsonl for the raw response.\n"
                     )
 
-                self._append_output("--- Fine test ---\n\n")
+                self._append_output("--- End of test ---\n\n")
                 self._status_var.set("Idle")
                 self._set_running_state(False)
                 self._sync_test_button_state()
@@ -788,7 +788,7 @@ class PromptEngineeringGUI:
                 self._stop_heartbeat()
                 self._progress.stop()
                 self._progress.configure(mode="determinate", maximum=1, value=0)
-                self._append_output(f"Errore durante il test: {err}\n")
+                self._append_output(f"Error during test: {err}\n")
                 self._append_output(tb + "\n")
                 self._status_var.set("Idle")
                 self._set_running_state(False)

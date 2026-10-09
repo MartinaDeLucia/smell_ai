@@ -726,8 +726,7 @@ class OllamaModelManagerDialog(tk.Toplevel):
                 "num_ctx": 8192,
             },
             response_format="json",
-            think=True if supports_thinking else None,
-        )
+            think=False,        )
 
         if self.on_catalog_changed:
             self.on_catalog_changed()

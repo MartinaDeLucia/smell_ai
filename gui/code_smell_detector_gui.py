@@ -417,7 +417,7 @@ class CodeSmellDetectorGUI:
                 # Check if there are any detectable smells (UC01 Scenario 11.a1)
                 detectable_smells = self.catalog_service.list_detectable_smells()
                 if not detectable_smells:
-                    print("Warning: Non sono presenti Code Smell detectabili tramite LLM, l'analisi procederà in modo statico")
+                    print("Warning: No code smells are available for LLM-based detection. The analysis will proceed using static analysis only.")
                     use_llm = False
                 else:
                     print("Error: Please select at least one code smell.")

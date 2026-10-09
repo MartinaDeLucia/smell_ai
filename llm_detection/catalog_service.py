@@ -74,7 +74,6 @@ class LLMCatalogService:
                 raise CatalogValidationError(
                     f"A smell named '{name}' already exists"
                 )
-
         base_id = _slugify(name)
         smell_id = self._next_available_smell_id(catalog, base_id)
 
