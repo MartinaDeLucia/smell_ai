@@ -280,6 +280,13 @@ class LLMOrchestrator:
                                     1,
                             },
 
+                            "mitigation": {
+                                "type":
+                                    "string",
+                                "minLength":
+                                    1,
+                            },
+
                             "additional_info": {
                                 "type":
                                     "string",
@@ -291,6 +298,7 @@ class LLMOrchestrator:
                             "line",
                             "description",
                             "reasoning",
+                            "mitigation",
                         ],
 
                         "additionalProperties":
@@ -357,8 +365,13 @@ class LLMOrchestrator:
             '"<concise evidence-based rationale: '
             'violated rule + concrete code evidence>",\n'
 
+            '      "mitigation": '
+            '"<concise and actionable mitigation for '
+            'this specific occurrence>",\n'
+
             '      "additional_info": '
-            '"<optional refactoring hint or summary>"\n'
+            '"<optional supplementary note not already '
+            'covered by reasoning or mitigation>"\n'
 
             "    }\n"
             "  ]\n"
@@ -403,7 +416,34 @@ class LLMOrchestrator:
             "and should be 1-3 concise sentences.\n"
 
             "- In 'reasoning', identify the matched smell "
-            "rule and concrete code evidence.\n"
+            "rule and concrete code evidence.\n\n"
+
+            "MITIGATION GUIDELINES:\n"
+
+            "- For every finding, 'mitigation' is REQUIRED.\n"
+
+            "- The mitigation must directly address the detected "
+            "smell and the concrete occurrence reported in the finding.\n"
+
+            "- Prefer the smallest reasonable change that mitigates "
+            "the smell.\n"
+
+            "- Make the recommendation actionable for a developer.\n"
+
+            "- When appropriate, provide a short example of the preferred "
+            "API, construct, or refactoring strategy.\n"
+
+            "- Do not claim that the proposed mitigation is guaranteed "
+            "to preserve program behavior.\n"
+
+            "- If the available context is insufficient to infer a safe "
+            "concrete transformation, describe the recommended strategy "
+            "instead of inventing missing code.\n"
+
+            "- Do not rewrite or modify unrelated parts of the source code.\n"
+
+            "- Keep 'additional_info' only for supplementary information "
+            "that does not belong to reasoning or mitigation.\n\n"
 
             "- Be conservative: avoid false positives.\n"
 
@@ -978,6 +1018,7 @@ class LLMOrchestrator:
             "line",
             "description",
             "reasoning",
+            "mitigation",
             "additional_info",
         }
 
@@ -986,6 +1027,7 @@ class LLMOrchestrator:
             "line",
             "description",
             "reasoning",
+            "mitigation",
         }
 
         if not required_keys.issubset(item.keys()):
@@ -1016,6 +1058,9 @@ class LLMOrchestrator:
             return False
 
         if not isinstance(item["reasoning"], str) or not item["reasoning"].strip():
+            return False
+
+        if not isinstance(item["mitigation"], str) or not item["mitigation"].strip():
             return False
 
         if "additional_info" in item and not isinstance(
@@ -1106,6 +1151,7 @@ class LLMOrchestrator:
                         line=item["line"],
                         description=item["description"],
                         reasoning=item["reasoning"],
+                        mitigation=item["mitigation"],
                         additional_info=_safe_str(
                             item.get(
                                 "additional_info",
@@ -1214,6 +1260,18 @@ class LLMOrchestrator:
                             item.get("rationale", item.get("explanation", "")),
                         )
                     ),
+                    mitigation=_safe_str(
+                        item.get(
+                            "mitigation",
+                            item.get(
+                                "suggestion",
+                                item.get(
+                                    "fix",
+                                    item.get("recommendation", ""),
+                                ),
+                            ),
+                        )
+                    ),
                     additional_info=_safe_str(
                         item.get(
                             "additional_info",
@@ -1238,6 +1296,7 @@ class LLMOrchestrator:
             "line",
             "description",
             "reasoning",
+            "mitigation",
             "additional_info",
         ]
         return pd.DataFrame(rows, columns=columns)

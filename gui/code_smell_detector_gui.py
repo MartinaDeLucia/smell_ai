@@ -125,7 +125,7 @@ class CodeSmellDetectorGUI:
         # LLM Checkbox
         self.llm_var = tk.BooleanVar()
         self.llm_check = tk.Checkbutton(
-            self.master, 
+            self.master,
             text="LLM Detection", 
             variable=self.llm_var,
             command=self.toggle_llm_controls
@@ -192,7 +192,7 @@ class CodeSmellDetectorGUI:
         self.show_reasoning_var = tk.BooleanVar(value=True)
         self.show_reasoning_check = tk.Checkbutton(
             self.llm_frame,
-            text="Show LLM assessment and finding reasoning",
+            text="Show LLM assessment, reasoning and mitigation",
             variable=self.show_reasoning_var,
         )
         self.show_reasoning_check.grid(row=3, column=1, sticky="w", pady=(0, 5))
@@ -833,12 +833,40 @@ class CodeSmellDetectorGUI:
                     print(f"  - {filename}: {len(file_findings)} code smell(s)")
 
                 if show_reasoning:
-                    print("\n--- Finding Reasoning ---")
+                    print("\n--- Finding Explanation and Mitigation ---")
+
                     for finding in findings:
-                        rationale = (getattr(finding, "reasoning", "") or "").strip()
+                        rationale = (
+                                getattr(
+                                    finding,
+                                    "reasoning",
+                                    "",
+                                )
+                                or ""
+                        ).strip()
+
+                        mitigation = (
+                                getattr(
+                                    finding,
+                                    "mitigation",
+                                    "",
+                                )
+                                or ""
+                        ).strip()
+
                         print(
-                            f"{finding.filename}:{finding.line} [{finding.smell_name}] "
+                            f"{finding.filename}:{finding.line} "
+                            f"[{finding.smell_name}]"
+                        )
+
+                        print(
+                            "  Reasoning: "
                             f"{rationale or '(reasoning not returned by model)'}"
+                        )
+
+                        print(
+                            "  Mitigation: "
+                            f"{mitigation or '(mitigation not returned by model)'}"
                         )
 
             # ALWAYS save one trace per LLM generation.

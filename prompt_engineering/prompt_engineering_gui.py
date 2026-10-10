@@ -1965,7 +1965,7 @@ class PromptEngineeringGUI:
                     )
 
                     self._append_output(
-                        "\nReasoning preview:\n"
+                        "\nFinding explanation and mitigation preview:\n"
                     )
 
                     for finding in valid_findings[:20]:
@@ -1978,11 +1978,23 @@ class PromptEngineeringGUI:
                             or ""
                         ).strip()
 
+                        mitigation = (
+                            getattr(
+                                finding,
+                                "mitigation",
+                                "",
+                            )
+                            or ""
+                        ).strip()
+
                         self._append_output(
                             f"- {os.path.basename(finding.filename)}:"
                             f"{finding.line} "
-                            f"[{finding.smell_name}] "
+                            f"[{finding.smell_name}]\n"
+                            f"  Reasoning: "
                             f"{rationale or '(reasoning not returned)'}\n"
+                            f"  Mitigation: "
+                            f"{mitigation or '(mitigation not returned)'}\n"
                         )
 
                     if len(valid_findings) > 20:
