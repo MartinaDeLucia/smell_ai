@@ -17,10 +17,17 @@ class PromptMode(str, Enum):
 
 
 class NormalizationMode(str, Enum):
-    """Controls how tolerant the orchestrator is when normalizing LLM output.
+    """
+    Controls how tolerant the orchestrator is when normalizing LLM output.
 
-    - STRICT: accept ONLY the declared schema ({"findings": [...]}); on any mismatch return no findings.
-    - SALVAGE: best-effort recovery (fences/prose tolerated; alternate top-level keys can be salvaged).
+    STRICT:
+        Accept only responses that fully match the declared CodeSmile
+        assessment + findings contract.
+
+    SALVAGE:
+        Best-effort recovery used mainly during Prompt Engineering.
+        Markdown fences, surrounding prose, and selected alternate field
+        names may be tolerated when useful information can still be recovered.
     """
 
     STRICT = "strict"
@@ -46,11 +53,12 @@ class LLMGenerationResult:
 
     metadata:
         Provider metadata such as model, token usage, latency,
-        finish reason, request id, etc.
+        finish reason, request ID, etc.
 
     raw_provider_response:
         Complete provider response when available.
-        Particularly useful for paid API calls and reproducibility.
+        Particularly useful for paid API calls, debugging,
+        inspection, and reproducibility.
     """
 
     response: str
@@ -61,7 +69,11 @@ class LLMGenerationResult:
 
 @dataclass
 class LLMProviderDefinition:
-    """Persisted configuration for a provider selectable from UI."""
+    """
+    Persisted configuration for a provider selectable from the UI.
+
+    Secrets such as API keys should not be stored in this object.
+    """
 
     provider_id: str
     kind: ProviderKind
@@ -71,7 +83,9 @@ class LLMProviderDefinition:
 
 @dataclass
 class LLMSmellDefinition:
-    """A smell that can be detected via LLM prompts."""
+    """
+    A code smell that can be detected through LLM prompts.
+    """
 
     smell_id: str
     display_name: str
@@ -79,8 +93,9 @@ class LLMSmellDefinition:
     default_prompt: str
     draft_prompt: Optional[str] = None
     created_by_user: bool = True
-    # In CR01 use cases, a smell becomes usable for detection once a default prompt
-    # has been saved (prompt engineering). Keeping this explicit allows toggling.
+
+    # A smell becomes usable for detection once a default prompt
+    # has been saved and detection has been enabled.
     enabled: bool = False
 
     def is_ready_for_detection(self) -> bool:
@@ -93,6 +108,7 @@ class LLMSmellDefinition:
                     f"Default prompt is empty for smell_id='{self.smell_id}'"
                 )
             return self.default_prompt
+
         if prompt_mode == PromptMode.DRAFT:
             if self.draft_prompt is None or not self.draft_prompt.strip():
                 raise ValueError(
@@ -115,6 +131,7 @@ class LLMSmellDefinition:
             raise ValueError(
                 f"Cannot promote empty draft to default for smell_id='{self.smell_id}'"
             )
+
         self.default_prompt = self.draft_prompt
         self.enabled = True
 
@@ -138,16 +155,25 @@ class LLMCatalog:
             if existing.smell_id == smell.smell_id:
                 self.smells[index] = smell
                 return
+
         self.smells.append(smell)
 
     def get_provider(self, provider_id: str) -> LLMProviderDefinition:
         for provider in self.providers:
             if provider.provider_id == provider_id:
                 return provider
-        raise KeyError(f"Unknown provider_id: {provider_id}")
 
-    def upsert_provider(self, provider: LLMProviderDefinition) -> None:
-        for index, existing in enumerate(self.providers):
+        raise KeyError(
+            f"Unknown provider_id: {provider_id}"
+        )
+
+    def upsert_provider(
+        self,
+        provider: LLMProviderDefinition,
+    ) -> None:
+        for index, existing in enumerate(
+            self.providers
+        ):
             if existing.provider_id == provider.provider_id:
                 self.providers[index] = provider
                 return
@@ -156,21 +182,49 @@ class LLMCatalog:
 
 @dataclass(frozen=True)
 class DetectionTarget:
+    """
+    Source-code unit submitted to the LLM orchestrator.
+    """
+
     filename: str
     code: str
 
 
 @dataclass(frozen=True)
 class LLMSmellFinding:
-    """Normalized LLM output, designed to be convertible to the existing CSV schema."""
+    """
+    Normalized occurrence of an LLM-detected code smell.
+
+    description:
+        Short description of what was detected.
+
+    reasoning:
+        Concise, evidence-based explanation of why the specific
+        occurrence matches the smell definition or detection rule.
+
+    mitigation:
+        Concise and actionable recommendation describing how the
+        developer can address or mitigate the specific occurrence.
+
+        A mitigation is a recommendation, not an automatically
+        applied refactoring and not a guarantee that program behavior
+        will remain unchanged.
+
+    additional_info:
+        Optional supplementary information that is not already covered
+        by description, reasoning, or mitigation.
+    """
 
     filename: str
     function_name: str
     smell_name: str
     line: int
     description: str
+
     reasoning: str = ""
     additional_info: str = ""
+    mitigation: str = ""
+
     smell_id: Optional[str] = None
     confidence: Optional[float] = None
     raw_response: Optional[str] = None
@@ -183,6 +237,7 @@ class LLMSmellFinding:
             "line": self.line,
             "description": self.description,
             "reasoning": self.reasoning,
+            "mitigation": self.mitigation,
             "additional_info": self.additional_info,
         }
 
@@ -192,9 +247,18 @@ class DetectionResult:
     """
     Result of one file × smell detection.
 
-    assessment is the developer-facing natural-language analysis.
+    assessment:
+        Developer-facing natural-language analysis of the complete
+        file × smell evaluation.
 
-    findings contains the normalized, machine-readable occurrences.
+    findings:
+        Normalized machine-readable smell occurrences.
+
+    status:
+        SUCCESS when the response respects the expected contract,
+        INVALID_RESPONSE when an LLM response was received but does
+        not satisfy the contract, or PROVIDER_ERROR when generation
+        failed before a usable response was obtained.
     """
 
     filename: str
