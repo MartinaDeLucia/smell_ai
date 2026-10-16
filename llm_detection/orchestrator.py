@@ -299,6 +299,7 @@ class LLMOrchestrator:
                             "description",
                             "reasoning",
                             "mitigation",
+                            "additional_info",
                         ],
 
                         "additionalProperties":

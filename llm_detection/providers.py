@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import json
 from time import monotonic
 from typing import Any, Callable, Optional
+from urllib.parse import urlparse
 
 from llm_detection.types import LLMGenerationResult
 
@@ -706,6 +707,14 @@ class ApiLLMProvider(LLMProvider):
             self.options
         )
 
+        # The official OpenAI Chat Completions API requires
+        # max_completion_tokens for GPT-5.4 (and newer models).
+        # Keep max_tokens unchanged for other OpenAI-compatible APIs.
+        if urlparse(self.base_url).hostname == "api.openai.com":
+            legacy_limit = payload.pop("max_tokens", None)
+            if legacy_limit is not None:
+                payload.setdefault("max_completion_tokens", legacy_limit)
+
         # Structured output remains optional because not every
         # OpenAI-compatible endpoint implements JSON Schema.
         if (
@@ -771,12 +780,49 @@ class ApiLLMProvider(LLMProvider):
 
                 data = resp.json()
 
+        except httpx.HTTPStatusError as exc:
+            # Include the API's real HTTP status and error information.
+            # Never log request headers or the Authorization token.
+            status = exc.response.status_code
+            error_message = ""
+            error_code = ""
+            try:
+                error_data = exc.response.json()
+                api_error = (
+                    error_data.get("error", {})
+                    if isinstance(error_data, dict)
+                    else {}
+                )
+                if isinstance(api_error, dict):
+                    error_message = str(api_error.get("message") or "")
+                    error_code = str(api_error.get("code") or "")
+            except (ValueError, TypeError):
+                pass
+
+            details = f"HTTP {status} from API provider {self.base_url}"
+            if error_code:
+                details += f" (code: {error_code[:100]})"
+            if error_message:
+                details += f": {error_message[:1000]}"
+            raise RuntimeError(details) from exc
+
+        except httpx.TimeoutException as exc:
+            raise RuntimeError(
+                f"API provider timed out after {self.timeout_s:g} seconds "
+                f"at {self.base_url}."
+            ) from exc
+
+        except httpx.RequestError as exc:
+            raise RuntimeError(
+                "Cannot reach API provider "
+                f"{self.base_url} ({type(exc).__name__}). "
+                "Check network, proxy, DNS, and TLS settings."
+            ) from exc
+
         except Exception as exc:
             raise RuntimeError(
-                "Failed to call API provider "
-                f"at {self.base_url}. "
-                "Check the base URL, model name, "
-                "API key and provider availability."
+                f"Unexpected API provider error ({type(exc).__name__}) "
+                f"at {self.base_url}."
             ) from exc
 
         if not isinstance(
@@ -1072,16 +1118,16 @@ class ApiLLMProvider(LLMProvider):
             0,
         )
 
-        if (
-            "max_tokens"
-            not in test_options
-            and
+        # Keep the connection test inexpensive, regardless of the
+        # output limit configured for actual smell detection.
+        limit_key = (
             "max_completion_tokens"
-            not in test_options
-        ):
-            test_options[
-                "max_tokens"
-            ] = 8
+            if "max_completion_tokens" in test_options
+            else "max_tokens"
+        )
+        test_options.pop("max_tokens", None)
+        test_options.pop("max_completion_tokens", None)
+        test_options[limit_key] = 32
 
         self.options = (
             test_options
